@@ -1,0 +1,7 @@
+.venv
+__pycache__
+*.pyc
+clips/*.mp4
+imgs/
+takes/
+*.7z

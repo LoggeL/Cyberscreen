@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cyberscreen Client</title>
+    <style>
+      /* Fullscreen Video */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: black;
+      }
+
+      div {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+
+      video,
+      img {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        aspect-ratio: 16 / 9;
+      }
+
+      video {
+        z-index: 1;
+      }
+
+      /* Ignore overflow */
+      body {
+        overflow: hidden;
+      }
+
+      /* Button styles from server.html */
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+      #startButton {
+        position: absolute;
+        z-index: 3;
+        background-color: transparent;
+        color: black;
+        border: 3px solid #00ff00; /* Increased border size */
+        border-radius: 5px;
+        padding: 25px; /* Increased padding */
+        font-size: 24px; /* Increased font size */
+        font-family: 'Orbitron', sans-serif;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-shadow: 0 0 5px #00ff00;
+        background-color: #00ff00;
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+      }
+
+      #startButton:hover {
+        background-color: rgba(0, 255, 0, 0.5);
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.75);
+      }
+
+      #startButton:active {
+        transform: scale(0.95);
+        background-color: rgba(0, 255, 0, 0.5);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div>
+      <video id="liveVideo" autoplay muted></video>
+      <video id="clipVideo" autoplay muted></video>
+      <img src="/files/imgs/Static.png" alt="Static" id="img" />
+      <!-- Button for user interaction -->
+      <button id="startButton">Click to Start</button>
+    </div>
+
+    <script src="socket.io.js"></script>
+    <script>
+      const socket = io(
+        location.protocol + '//' + document.domain + ':' + location.port
+      )
+      let clips = []
+      let userHasInteracted = false
+      let clipsActive = false // Track whether the "Clips" case is active
+
+      document
+        .getElementById('startButton')
+        .addEventListener('click', function () {
+          userHasInteracted = true
+          this.style.display = 'none' // Hide the button after interaction
+        })
+
+      socket.on('connect', () => {
+        console.log('connected')
+        // Fetch clip list
+      })
+      // get website hash
+      const hash = window.location.hash.substr(1)
+      if (hash && (hash === 'mute' || hash === 'muted')) {
+        document.getElementById('liveVideo').muted = true
+        document.getElementById('clipVideo').muted = true
+        // Set volume to 0 for all videos
+        document.getElementById('liveVideo').volume = 0
+        document.getElementById('clipVideo').volume = 0
+      }
+
+      socket.on('status', (status) => {
+        if (!userHasInteracted) {
+          console.warn(
+            'User interaction required before status update handling'
+          )
+          return
+        }
+
+        console.log('status: ' + status)
+        const liveVideo = document.getElementById('liveVideo')
+        const clipVideo = document.getElementById('clipVideo')
+        const img = document.getElementById('img')
+
+        img.src = '/files/imgs/Static.png'
+        switch (status) {
+          case 'Clips':
+            clipsActive = true
+            img.style['z-index'] = -1
+            liveVideo.style['z-index'] = -1
+            clipVideo.style['z-index'] = 2
+            // play random clip
+            playClip(0)
+            break
+          case 'Live':
+            clipsActive = false
+            liveVideo.style['z-index'] = 2
+            clipVideo.style['z-index'] = -1
+            img.style['z-index'] = -1
+            startLiveStream()
+            break
+          case 'Sewer':
+            clipsActive = false
+            liveVideo.pause()
+            clipVideo.pause()
+            img.style['z-index'] = 2
+            img.src = '/files/imgs/sewer.webp'
+            break
+          case 'Sunset':
+            clipsActive = false
+            liveVideo.pause()
+            clipVideo.pause()
+            img.style['z-index'] = 2
+            img.src = '/files/imgs/sunset.webp'
+            break
+          case 'Stopped':
+            clipsActive = false
+            liveVideo.pause()
+            clipVideo.pause()
+            img.style['z-index'] = 2
+            break
+          case 'AI':
+            clipsActive = false
+            liveVideo.pause()
+            clipVideo.pause()
+            img.style['z-index'] = 2
+            img.src = '/files/imgs/AI.png'
+            break
+          default:
+            clipsActive = false
+            if (status.startsWith('AI')) {
+              liveVideo.pause()
+              clipVideo.pause()
+              img.style['z-index'] = -1
+              clipVideo.style['z-index'] = 2
+              liveVideo.style['z-index'] = -1
+              clipVideo.src = '/files/takes/' + status + '.mp4'
+              clipVideo.muted = false // Ensure sound is on for 'takes' folder videos
+              clipVideo.play()
+              const louisBG = ['AI23_5', 'AI23_6', 'AI23_7']
+              // onend switch
+              clipVideo.addEventListener('ended', () => {
+                img.style['z-index'] = 2
+                clipVideo.style['z-index'] = -1
+                img.src = louisBG.includes(status)
+                  ? '/files/imgs/louis.jpg'
+                  : '/files/imgs/AI.png'
+                if (status === 'AI23_7') {
+                  img.src = '/files/imgs/Static.png'
+                }
+              }) // Ensure the event listener is removed after execution
+            } else {
+              // Einspieler
+              liveVideo.pause()
+              clipVideo.pause()
+              img.style['z-index'] = -1
+              clipVideo.style['z-index'] = 2
+              liveVideo.style['z-index'] = -1
+              clipVideo.src = '/files/takes/' + status + '.mp4'
+              clipVideo.muted = false // Ensure sound is on for 'takes' folder videos
+              clipVideo.play()
+              // onend switch to static
+              clipVideo.addEventListener('ended', () => {
+                img.style['z-index'] = 2
+                clipVideo.style['z-index'] = -1
+                img.src = '/files/imgs/Static.png'
+              })
+            }
+        }
+      })
+
+      socket.on('disconnect', () => {
+        console.log('disconnected')
+      })
+
+      fetch('files/clips')
+        .then((res) => {
+          return res.json()
+        })
+        .then((data) => {
+          data = data.filter((clip) => !clip.includes('filter_'))
+          clips = data.sort(() => Math.random() - 0.5)
+          console.log(clips)
+        })
+
+      function playClip(i) {
+        if (!clipsActive) return // Exit if "Clips" is not active
+        if (clips.length === 0) {
+          setTimeout(() => {
+            console.log('No clips found, retrying in 1s')
+            playClip(i)
+          }, 1000)
+          return
+        } else {
+          const clip = clips[i % clips.length]
+          const clipVideo = document.getElementById('clipVideo')
+          const img = document.getElementById('img')
+
+          // Play the clip
+          clipVideo.src = 'files/clip/' + clip
+          clipVideo.muted = true // Ensure advertisement clips are muted
+          clipVideo.style['z-index'] = 2
+          img.style['z-index'] = -1
+          clipVideo.play()
+
+          clipVideo.addEventListener(
+            'ended',
+            function handleEnded() {
+              // Exit if "Clips" is not active
+              if (!clipsActive) return
+
+              // After the clip ends, show the static image for 5 seconds
+              clipVideo.style['z-index'] = -1
+              img.style['z-index'] = 2
+              img.src = '/files/imgs/Static.png'
+
+              setTimeout(() => {
+                // After 5 seconds, play the next ad clip
+                playClip(i + 1)
+              }, 5000) // 5000 milliseconds = 5 seconds
+            },
+            { once: true } // Ensures the event listener is removed after execution
+          )
+        }
+      }
+
+      function startLiveStream() {
+        const liveVideo = document.getElementById('liveVideo')
+        navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .then((stream) => {
+            liveVideo.srcObject = stream
+            liveVideo.play()
+          })
+          .catch((err) => {
+            console.error('Error accessing live webcam: ', err)
+          })
+      }
+    </script>
+  </body>
+</html>
